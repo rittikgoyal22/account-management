@@ -26,7 +26,7 @@ public class EmployeeMapper {
                 .email(employee.getEmailAddress())
                 .role(employee.getRole())
                 .currentGradeId(!ObjectUtils.isEmpty(employee.getCurrentGrade())? employee.getCurrentGrade().getId() : null)
-                .gradeAssignedOn(ObjectUtils.isEmpty(employee.getGradeHistories())? LocalDateTime.now():employee.getGradeHistories().getLast().getAssignedOn())
+                .gradeAssignedOn(ObjectUtils.isEmpty(employee.getGradeHistories())? LocalDateTime.now():employee.getGradeHistories().stream().sorted((a,b)->b.getAssignedOn().compareTo(a.getAssignedOn())).toList().getLast().getAssignedOn())
                 .build();
     }
 
@@ -44,6 +44,25 @@ public class EmployeeMapper {
             employee.setAccessGranted(employeeRequestDTO.getAccessGranted());
         }
         return employee;
+    }
+
+    public void mapNewDataToExistingEmployee(EmployeeRequestDTO employeeRequestDTO, Employee existingEmployee,Grade newGrade) {
+        if (employeeRequestDTO != null) {
+            java.util.Optional.ofNullable(employeeRequestDTO.getFirstName())
+                    .ifPresent(existingEmployee::setFirstName);
+            java.util.Optional.ofNullable(employeeRequestDTO.getLastName())
+                    .ifPresent(existingEmployee::setLastName);
+            java.util.Optional.ofNullable(employeeRequestDTO.getPhoneNumber())
+                    .ifPresent(existingEmployee::setPhoneNumber);
+            java.util.Optional.ofNullable(employeeRequestDTO.getEmailAddress())
+                    .ifPresent(existingEmployee::setEmailAddress);
+            java.util.Optional.ofNullable(employeeRequestDTO.getRole())
+                    .ifPresent(existingEmployee::setRole);
+        }
+        java.util.Optional.ofNullable(newGrade).ifPresent(existingEmployee::setCurrentGrade);
+
+        Boolean access = employeeRequestDTO != null ? employeeRequestDTO.getAccessGranted() : null;
+        existingEmployee.setAccessGranted(ObjectUtils.isEmpty(access) || access);
     }
 
 }

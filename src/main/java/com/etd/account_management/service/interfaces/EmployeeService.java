@@ -14,4 +14,6 @@ public interface EmployeeService {
     void deleteEmployeeById(Long id);
 
     EmployeeResponseDTO createEmployee(EmployeeRequestDTO employeeRequestDTO);
+
+    EmployeeResponseDTO updateEmployee(Long id, EmployeeRequestDTO employeeRequestDTO);
 }
