@@ -1,0 +1,61 @@
+# Gradle build output
+/build/
+/out/
+.gradle/
+
+# Maven build output (if present)
+target/
+
+# IDEs
+/.idea/
+/*.iml
+*.ipr
+*.iws
+*.vscode/
+*.project
+*.classpath
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Dependency directories (if any)
+/node_modules/
+
+# Java compiled classes
+*.class
+
+# Environment files & config
+.env
+application-*.yml
+application-*.properties
+
+# Generated files
+*.jar
+*.war
+*.ear
+
+# Lombok generated files
+*.lombok.log
+
+# Personal files
+*.swp
+*.swo
+
+# Others
+*.bak
+*.tmp
+
+# Ignore sensitive keys, credentials, and local DBs if present
+*.db
+*.sqlite
+*.p12
+*.pem
+*.key
+*.crt
+
+# Spring Boot devtools files
+.spring-boot-devtools.properties
