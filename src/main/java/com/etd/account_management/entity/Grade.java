@@ -35,4 +35,7 @@ public class Grade {
     @OneToMany(mappedBy = "currentGrade")
     private List<Employee> employees;
 
+    @OneToMany(mappedBy = "grade")
+    private List<GradeHistory> gradeHistories;
+
 }
