@@ -8,4 +8,5 @@ import org.springframework.stereotype.Repository;
 public interface GradeHistoryRepo extends JpaRepository<GradeHistory, Long> {
 
     void deleteByEmployeeEmployeeId(Long employeeId);
+
 }
