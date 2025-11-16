@@ -148,7 +148,7 @@ public class EmployeeServiceImpl implements EmployeeService {
 
         Employee updatedEmployee = employeeRepo.save(existingEmployee);
 
-        if (!Objects.equals(employeeCurrentGradeId, employeeRequestDTO.getCurrentGradeId())) {
+        if (!Objects.equals(employeeCurrentGradeId, employeeRequestDTO.getCurrentGradeId()) && null!=newGrade) {
             GradeHistory gradeHistory = gradeHistoryMapper.createGradeHistoryByEmployeeAndGrade(existingEmployee, newGrade);
             gradeHistoryRepo.save(gradeHistory);
         }
