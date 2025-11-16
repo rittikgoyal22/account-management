@@ -4,6 +4,7 @@ import com.etd.account_management.dto.EmployeeRequestDTO;
 import com.etd.account_management.dto.EmployeeResponseDTO;
 import com.etd.account_management.entity.Employee;
 import com.etd.account_management.entity.Grade;
+import org.slf4j.Logger;
 import org.springframework.stereotype.Component;
 import org.springframework.util.ObjectUtils;
 
@@ -13,11 +14,15 @@ import java.util.List;
 @Component
 public class EmployeeMapper {
 
+    Logger logger = org.slf4j.LoggerFactory.getLogger(EmployeeMapper.class);
+
     public List<EmployeeResponseDTO> mapListOfEmployeeToEmployeeDTO(List<Employee> employees) {
+        logger.info("Inside EmployeeMapper :: Mapping List<Employee> to List<EmployeeResponseDTO>");
         return employees.stream().map(this::mapEmployeeToEmployeeResponseDTO).toList();
     }
 
     public EmployeeResponseDTO mapEmployeeToEmployeeResponseDTO(Employee employee) {
+        logger.info("Inside EmployeeMapper :: Mapping Employee to EmployeeResponseDTO");
         return EmployeeResponseDTO.builder()
                 .id(employee.getEmployeeId())
                 .firstName(employee.getFirstName())
@@ -31,6 +36,7 @@ public class EmployeeMapper {
     }
 
     public Employee mapEmployeeRequestDTOToEmployee(EmployeeRequestDTO employeeRequestDTO, Grade grade) {
+        logger.info("Inside EmployeeMapper :: Mapping EmployeeRequestDTO to Employee");
         Employee employee = new Employee();
         employee.setFirstName(employeeRequestDTO.getFirstName());
         employee.setLastName(employeeRequestDTO.getLastName());
@@ -47,6 +53,7 @@ public class EmployeeMapper {
     }
 
     public void mapNewDataToExistingEmployee(EmployeeRequestDTO employeeRequestDTO, Employee existingEmployee,Grade newGrade) {
+        logger.info("Inside EmployeeMapper :: Mapping new data to existing Employee");
         if (employeeRequestDTO != null) {
             java.util.Optional.ofNullable(employeeRequestDTO.getFirstName())
                     .ifPresent(existingEmployee::setFirstName);
@@ -60,9 +67,8 @@ public class EmployeeMapper {
                     .ifPresent(existingEmployee::setRole);
         }
         java.util.Optional.ofNullable(newGrade).ifPresent(existingEmployee::setCurrentGrade);
-
         Boolean access = employeeRequestDTO != null ? employeeRequestDTO.getAccessGranted() : null;
-        existingEmployee.setAccessGranted(ObjectUtils.isEmpty(access) || access);
+        existingEmployee.setAccessGranted(Boolean.TRUE.equals(access));
     }
 
 }

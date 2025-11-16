@@ -16,4 +16,5 @@ public interface EmployeeService {
     EmployeeResponseDTO createEmployee(EmployeeRequestDTO employeeRequestDTO);
 
     EmployeeResponseDTO updateEmployee(Long id, EmployeeRequestDTO employeeRequestDTO);
+
 }
