@@ -27,7 +27,7 @@ public class EmployeeResponseDTO {
 
     private String role;
 
-    private Long currentGradeId;
+    private String gradeName;
 
     private LocalDateTime gradeAssignedOn;
 
