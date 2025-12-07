@@ -86,7 +86,7 @@ public class EmployeeServiceImpl implements EmployeeService {
     @Override
     @Transactional
     public EmployeeResponseDTO createEmployee(EmployeeRequestDTO employeeRequestDTO) {
-        logger.info("Inside EmployeeServiceImpl :: Creating new employee");
+        logger.info("Inside EmployeeServiceImpl :: Creating new employee : {}", employeeRequestDTO);
 
         commonUtil.validateEmailAddress(employeeRequestDTO);
 

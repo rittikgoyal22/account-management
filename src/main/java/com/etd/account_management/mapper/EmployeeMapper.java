@@ -28,7 +28,7 @@ public class EmployeeMapper {
                 .firstName(employee.getFirstName())
                 .lastName(employee.getLastName())
                 .phoneNumber(employee.getPhoneNumber())
-                .email(employee.getEmailAddress())
+                .emailAddress(employee.getEmailAddress())
                 .role(employee.getRole())
                 .gradeName(!ObjectUtils.isEmpty(employee.getCurrentGrade())? employee.getCurrentGrade().getName() : null)
                 .gradeAssignedOn(ObjectUtils.isEmpty(employee.getGradeHistories())? LocalDateTime.now():employee.getGradeHistories().stream().sorted((a,b)->b.getAssignedOn().compareTo(a.getAssignedOn())).toList().getLast().getAssignedOn())

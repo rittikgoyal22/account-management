@@ -23,7 +23,7 @@ public class EmployeeResponseDTO {
 
     private String phoneNumber;
 
-    private String email;
+    private String emailAddress;
 
     private String role;
 

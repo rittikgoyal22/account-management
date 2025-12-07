@@ -19,6 +19,7 @@ public record CommonUtil(MessageSource messageSource) {
     private static final Logger logger = LoggerFactory.getLogger(CommonUtil.class);
 
     public void validateEmailAddress(EmployeeRequestDTO employeeRequestDTO) {
+        logger.info("Inside Common Util :: validateEmailAddress : {}", employeeRequestDTO.getEmailAddress());
         if (employeeRequestDTO.getEmailAddress() == null || !employeeRequestDTO.getEmailAddress().endsWith(EMAIL_DOMAIN)) {
             logger.warn("Invalid email address: {}", employeeRequestDTO.getEmailAddress());
             throw new BadRequestException(messageSource.getMessage(ERROR_EMPLOYEE_INVALID_EMAIL, null, Locale.ENGLISH), EMAIL_ADDRESS);
