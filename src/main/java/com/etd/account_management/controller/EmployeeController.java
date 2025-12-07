@@ -6,6 +6,7 @@ import com.etd.account_management.service.interfaces.EmployeeService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -19,6 +20,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/employees")
+@CrossOrigin
 public class EmployeeController {
 
     private final EmployeeService employeeService;
@@ -51,7 +53,7 @@ public class EmployeeController {
 
     @PostMapping()
     public ResponseEntity<EmployeeResponseDTO> createEmployee(@RequestBody EmployeeRequestDTO employeeRequestDTO) {
-        logger.info("Inside Employee Controller :: Creating new employee");
+        logger.info("Inside Employee Controller :: Creating new employee : {}", employeeRequestDTO);
         EmployeeResponseDTO employeeResponseDTO = employeeService.createEmployee(employeeRequestDTO);
         return ResponseEntity.ok(employeeResponseDTO);
     }
