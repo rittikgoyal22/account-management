@@ -20,8 +20,12 @@ public record CommonUtil(MessageSource messageSource) {
 
     public void validateEmailAddress(EmployeeRequestDTO employeeRequestDTO) {
         logger.info("Inside Common Util :: validateEmailAddress : {}", employeeRequestDTO.getEmailAddress());
-        if (employeeRequestDTO.getEmailAddress() == null || !employeeRequestDTO.getEmailAddress().endsWith(EMAIL_DOMAIN)) {
-            logger.warn("Invalid email address: {}", employeeRequestDTO.getEmailAddress());
+        validateEmail(employeeRequestDTO.getEmailAddress());
+    }
+
+    public void validateEmail(String email) {
+        if (email == null || !email.endsWith(EMAIL_DOMAIN)) {
+            logger.warn("Invalid email address: {}", email);
             throw new BadRequestException(messageSource.getMessage(ERROR_EMPLOYEE_INVALID_EMAIL, null, Locale.ENGLISH), EMAIL_ADDRESS);
         }
     }

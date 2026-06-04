@@ -50,6 +50,9 @@ public class Employee {
     @JoinColumn(name = "current_grade_id", referencedColumnName = "id")
     private Grade currentGrade;
 
+    @Column(name = "password")
+    private String password;
+
     @Column(name = "access_granted")
     private Boolean accessGranted;
 

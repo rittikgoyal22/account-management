@@ -18,6 +18,7 @@ import com.etd.account_management.util.CommonUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.MessageSource;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -45,9 +46,10 @@ public class EmployeeServiceImpl implements EmployeeService {
     private final GradeHistoryRepo gradeHistoryRepo;
     private final MessageSource messageSource;
     private final CommonUtil commonUtil;
+    private final PasswordEncoder passwordEncoder;
     private static final Logger logger = LoggerFactory.getLogger(EmployeeServiceImpl.class);
 
-    public EmployeeServiceImpl(EmployeeRepo employeeRepo, EmployeeMapper employeeMapper, GradeHistoryMapper gradeHistoryMapper, GradeRepo gradeRepo, GradeHistoryRepo gradeHistoryRepo, MessageSource messageSource, CommonUtil commonUtil) {
+    public EmployeeServiceImpl(EmployeeRepo employeeRepo, EmployeeMapper employeeMapper, GradeHistoryMapper gradeHistoryMapper, GradeRepo gradeRepo, GradeHistoryRepo gradeHistoryRepo, MessageSource messageSource, CommonUtil commonUtil, PasswordEncoder passwordEncoder) {
         this.employeeRepo = employeeRepo;
         this.employeeMapper = employeeMapper;
         this.gradeHistoryMapper = gradeHistoryMapper;
@@ -55,6 +57,7 @@ public class EmployeeServiceImpl implements EmployeeService {
         this.gradeHistoryRepo = gradeHistoryRepo;
         this.messageSource = messageSource;
         this.commonUtil = commonUtil;
+        this.passwordEncoder = passwordEncoder;
     }
 
     @Override
@@ -99,6 +102,7 @@ public class EmployeeServiceImpl implements EmployeeService {
                 .orElseThrow(() -> new BadRequestException(messageSource.getMessage(ERROR_GRADE_NOT_FOUND,null, Locale.ENGLISH), CURRENT_GRADE_ID));
 
         Employee employee = employeeMapper.mapEmployeeRequestDTOToEmployee(employeeRequestDTO, grade);
+        employee.setPassword(passwordEncoder.encode(employeeRequestDTO.getPassword()));
         Employee savedEmployee = employeeRepo.save(employee);
         GradeHistory gradeHistory = gradeHistoryMapper.createGradeHistoryByEmployeeAndGrade(employee, grade);
         gradeHistoryRepo.save(gradeHistory);

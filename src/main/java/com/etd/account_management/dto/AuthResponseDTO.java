@@ -5,30 +5,18 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-import lombok.ToString;
 
 @Builder
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-@ToString(exclude = "password")
-public class EmployeeRequestDTO {
+public class AuthResponseDTO {
 
-    private String firstName;
-
-    private String lastName;
-
-    private String phoneNumber;
+    private String token;
 
     private String emailAddress;
 
     private String role;
-
-    private String password;
-
-    private Long currentGradeId;
-
-    private Boolean accessGranted;
 
 }
