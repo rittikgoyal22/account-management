@@ -11,14 +11,8 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-public class AuthResponseDTO {
-
-    private String token;
+public class RefreshRequestDTO {
 
     private String refreshToken;
-
-    private String emailAddress;
-
-    private String role;
 
 }

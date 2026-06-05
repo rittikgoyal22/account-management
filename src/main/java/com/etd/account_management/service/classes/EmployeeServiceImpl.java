@@ -70,6 +70,7 @@ public class EmployeeServiceImpl implements EmployeeService {
     @Override
     public EmployeeResponseDTO getEmployeeById(Long id) {
         logger.info("Inside EmployeeServiceImpl :: Fetching employee with id: {}", id);
+        commonUtil.validateEmployeeId(id);
         Employee employee = employeeRepo.findById(id).orElseThrow(() -> new NotFoundException(messageSource.getMessage(ERROR_EMPLOYEE_NOT_FOUND,null, Locale.ENGLISH), EMPLOYEE_ID));
         return employeeMapper.mapEmployeeToEmployeeResponseDTO(employee);
     }
@@ -78,6 +79,7 @@ public class EmployeeServiceImpl implements EmployeeService {
     @Transactional
     public void deleteEmployeeById(Long id) {
         logger.info("Inside EmployeeServiceImpl :: Deleting employee with id: {}", id);
+        commonUtil.validateEmployeeId(id);
         if (!employeeRepo.existsById(id)) {
             logger.warn("Employee with id: {} not found", id);
             throw new NotFoundException(messageSource.getMessage(ERROR_EMPLOYEE_NOT_FOUND,null, Locale.ENGLISH), EMPLOYEE_ID);
@@ -113,6 +115,7 @@ public class EmployeeServiceImpl implements EmployeeService {
     @Transactional
     public EmployeeResponseDTO updateEmployee(Long id, EmployeeRequestDTO employeeRequestDTO) {
         logger.info("Inside EmployeeServiceImpl :: Updating employee with id: {}", id);
+        commonUtil.validateEmployeeId(id);
         Employee existingEmployee = employeeRepo.findById(id)
                 .orElseThrow(() -> new NotFoundException(messageSource.getMessage(ERROR_EMPLOYEE_NOT_FOUND,null, Locale.ENGLISH), EMPLOYEE_ID));
 

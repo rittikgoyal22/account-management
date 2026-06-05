@@ -1,6 +1,7 @@
 package com.etd.account_management.config;
 
 import com.etd.account_management.service.classes.MyUserDetailService;
+import com.etd.account_management.service.interfaces.TokenBlacklistService;
 import com.etd.account_management.util.JWTUtil;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -21,18 +22,23 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
     private final JWTUtil jwtUtil;
     private final ApplicationContext context;
+    private final TokenBlacklistService tokenBlacklistService;
 
-    public JwtAuthFilter(JWTUtil jwtUtil, ApplicationContext context) {
+    public JwtAuthFilter(JWTUtil jwtUtil, ApplicationContext context,
+                         TokenBlacklistService tokenBlacklistService) {
         this.jwtUtil = jwtUtil;
         this.context = context;
+        this.tokenBlacklistService = tokenBlacklistService;
     }
 
     @Override
-    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
-            throws ServletException, IOException {
+    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
+                                    FilterChain filterChain) throws ServletException, IOException {
+
         String authHeader = request.getHeader("Authorization");
         String token = null;
         String username = null;
+
         if (authHeader != null && authHeader.startsWith("Bearer ")) {
             token = authHeader.substring(7);
             try {
@@ -43,6 +49,14 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         }
 
         if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+
+            // reject if this token was explicitly blacklisted (user logged out)
+            if (tokenBlacklistService.isBlacklisted(token)) {
+                logger.warn("Blacklisted token used by: " + username);
+                filterChain.doFilter(request, response);
+                return;
+            }
+
             UserDetails userDetails = context.getBean(MyUserDetailService.class).loadUserByUsername(username);
             if (jwtUtil.validateToken(token, userDetails)) {
                 UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(

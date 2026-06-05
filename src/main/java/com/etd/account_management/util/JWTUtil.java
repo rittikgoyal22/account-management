@@ -1,5 +1,6 @@
 package com.etd.account_management.util;
 
+import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
@@ -11,6 +12,8 @@ import org.springframework.stereotype.Component;
 import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
 import java.security.NoSuchAlgorithmException;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.Base64;
 import java.util.Date;
 
@@ -18,7 +21,7 @@ import java.util.Date;
 public class JWTUtil {
 
     private static final Logger logger = LoggerFactory.getLogger(JWTUtil.class);
-    private static final long TOKEN_VALIDITY_MS = 1000L * 60 * 60 * 10; // 10 hours
+    private static final long TOKEN_VALIDITY_MS = 1000L * 60 * 60; // 1 hour
 
     private final SecretKey key;
 
@@ -65,6 +68,24 @@ public class JWTUtil {
                 .getPayload()
                 .getExpiration();
         return expiration.before(new Date(System.currentTimeMillis()));
+    }
+
+    // extracts expiry even from already-expired tokens (catches ExpiredJwtException)
+    // used by TokenBlacklistService to persist the expiry alongside the blacklisted token
+    public LocalDateTime extractExpiration(String token) {
+        try {
+            Date expiration = Jwts.parser()
+                    .verifyWith(key)
+                    .build()
+                    .parseSignedClaims(token)
+                    .getPayload()
+                    .getExpiration();
+            return expiration.toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime();
+        } catch (ExpiredJwtException e) {
+            // token is already expired but we can still read the expiry claim
+            return e.getClaims().getExpiration()
+                    .toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime();
+        }
     }
 
 }

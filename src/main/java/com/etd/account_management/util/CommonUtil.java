@@ -11,7 +11,9 @@ import java.util.Locale;
 
 import static com.etd.account_management.constant.AppConstant.EMAIL_ADDRESS;
 import static com.etd.account_management.constant.AppConstant.EMAIL_DOMAIN;
+import static com.etd.account_management.constant.AppConstant.EMPLOYEE_ID;
 import static com.etd.account_management.constant.AppConstant.ERROR_EMPLOYEE_INVALID_EMAIL;
+import static com.etd.account_management.constant.AppConstant.ERROR_EMPLOYEE_INVALID_ID;
 
 @Component
 public record CommonUtil(MessageSource messageSource) {
@@ -27,6 +29,13 @@ public record CommonUtil(MessageSource messageSource) {
         if (email == null || !email.endsWith(EMAIL_DOMAIN)) {
             logger.warn("Invalid email address: {}", email);
             throw new BadRequestException(messageSource.getMessage(ERROR_EMPLOYEE_INVALID_EMAIL, null, Locale.ENGLISH), EMAIL_ADDRESS);
+        }
+    }
+
+    public void validateEmployeeId(Long id) {
+        if (id == null || id < 100000 || id > 999999) {
+            logger.warn("Invalid employee ID: {}", id);
+            throw new BadRequestException(messageSource.getMessage(ERROR_EMPLOYEE_INVALID_ID, null, Locale.ENGLISH), EMPLOYEE_ID);
         }
     }
 
