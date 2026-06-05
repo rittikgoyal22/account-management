@@ -1,7 +1,7 @@
 package com.etd.account_management.config;
 
+import com.etd.account_management.client.AuthServiceClient;
 import com.etd.account_management.service.classes.MyUserDetailService;
-import com.etd.account_management.service.interfaces.TokenBlacklistService;
 import com.etd.account_management.util.JWTUtil;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -22,13 +22,13 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
     private final JWTUtil jwtUtil;
     private final ApplicationContext context;
-    private final TokenBlacklistService tokenBlacklistService;
+    private final AuthServiceClient authServiceClient;
 
     public JwtAuthFilter(JWTUtil jwtUtil, ApplicationContext context,
-                         TokenBlacklistService tokenBlacklistService) {
+                         AuthServiceClient authServiceClient) {
         this.jwtUtil = jwtUtil;
         this.context = context;
-        this.tokenBlacklistService = tokenBlacklistService;
+        this.authServiceClient = authServiceClient;
     }
 
     @Override
@@ -50,11 +50,14 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
         if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
 
-            // reject if this token was explicitly blacklisted (user logged out)
-            if (tokenBlacklistService.isBlacklisted(token)) {
-                logger.warn("Blacklisted token used by: " + username);
-                filterChain.doFilter(request, response);
-                return;
+            try {
+                if (Boolean.TRUE.equals(authServiceClient.isBlacklisted(token))) {
+                    logger.warn("Blacklisted token used by: " + username);
+                    filterChain.doFilter(request, response);
+                    return;
+                }
+            } catch (Exception e) {
+                logger.warn("Blacklist check skipped — auth-service unreachable: " + e.getMessage());
             }
 
             UserDetails userDetails = context.getBean(MyUserDetailService.class).loadUserByUsername(username);

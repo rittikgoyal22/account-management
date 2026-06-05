@@ -2,7 +2,6 @@ package com.etd.account_management.config;
 
 import com.etd.account_management.dao.EmployeeRepo;
 import com.etd.account_management.dao.GradeRepo;
-import com.etd.account_management.dao.TokenBlacklistRepo;
 import com.etd.account_management.entity.Employee;
 import com.etd.account_management.entity.Grade;
 import org.slf4j.Logger;
@@ -13,7 +12,6 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
 import java.util.List;
 
 @Component
@@ -24,14 +22,11 @@ public class DataInitializer implements ApplicationRunner {
     private final GradeRepo gradeRepo;
     private final EmployeeRepo employeeRepo;
     private final PasswordEncoder passwordEncoder;
-    private final TokenBlacklistRepo tokenBlacklistRepo;
 
-    public DataInitializer(GradeRepo gradeRepo, EmployeeRepo employeeRepo,
-                           PasswordEncoder passwordEncoder, TokenBlacklistRepo tokenBlacklistRepo) {
+    public DataInitializer(GradeRepo gradeRepo, EmployeeRepo employeeRepo, PasswordEncoder passwordEncoder) {
         this.gradeRepo = gradeRepo;
         this.employeeRepo = employeeRepo;
         this.passwordEncoder = passwordEncoder;
-        this.tokenBlacklistRepo = tokenBlacklistRepo;
     }
 
     @Override
@@ -39,12 +34,6 @@ public class DataInitializer implements ApplicationRunner {
     public void run(ApplicationArguments args) {
         seedGrades();
         seedDefaultEmployees();
-        cleanupExpiredBlacklistTokens();
-    }
-
-    private void cleanupExpiredBlacklistTokens() {
-        logger.info("DataInitializer :: Cleaning up expired blacklisted tokens");
-        tokenBlacklistRepo.deleteExpiredTokens(LocalDateTime.now());
     }
 
     private void seedGrades() {
@@ -59,7 +48,8 @@ public class DataInitializer implements ApplicationRunner {
     }
 
     private void seedDefaultEmployees() {
-        Grade gradeOne = gradeRepo.findById(1L).orElse(gradeRepo.findAll().get(0));
+        Grade gradeOne   = gradeRepo.findById(1L).orElseThrow();
+        Grade gradeThree = gradeRepo.findById(3L).orElseThrow();
 
         if (employeeRepo.findByEmailAddress("admin.hr@cognizant.com").isEmpty()) {
             logger.info("DataInitializer :: Creating default HR employee");
@@ -85,6 +75,20 @@ public class DataInitializer implements ApplicationRunner {
                     .password(passwordEncoder.encode("Exec@123"))
                     .role("TravelDeskExe")
                     .currentGrade(gradeOne)
+                    .accessGranted(true)
+                    .build());
+        }
+
+        if (employeeRepo.findByEmailAddress("john.employee@cognizant.com").isEmpty()) {
+            logger.info("DataInitializer :: Creating default Employee");
+            employeeRepo.save(Employee.builder()
+                    .firstName("John")
+                    .lastName("Employee")
+                    .phoneNumber("9000000003")
+                    .emailAddress("john.employee@cognizant.com")
+                    .password(passwordEncoder.encode("Employee@123"))
+                    .role("Employee")
+                    .currentGrade(gradeThree)
                     .accessGranted(true)
                     .build());
         }

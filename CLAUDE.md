@@ -6,69 +6,89 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Build & Run
 
-This is a Spring Boot 3.5.7 / Java 21 / Gradle project.
+Spring Boot 3.5.7 / Java 21 / Gradle project.
 
-> **Note:** The `gradle/wrapper/gradle-wrapper.jar` is not committed. Use the system `gradle` command directly instead of the wrapper scripts.
+> **Note:** `gradle/wrapper/gradle-wrapper.jar` is not committed. Use system `gradle` directly.
 
 - Build: `gradle build`
-- Run app: `gradle bootRun` — listens on port **8081**
+- Run: `gradle bootRun` — listens on port **8081**
 - Run all tests: `gradle test`
-- Run a single test class: `gradle test --tests "com.etd.account_management.AccountManagementApplicationTests"`
-- Run a single test method: `gradle test --tests "FQCN.methodName"`
+- Run single test class: `gradle test --tests "com.etd.account_management.AccountManagementApplicationTests"`
+- Run single test method: `gradle test --tests "FQCN.methodName"`
 - Clean: `gradle clean`
 
-The package is `com.etd.account_management` (underscore — the original hyphenated form was invalid; see [HELP.md](HELP.md)).
+Package: `com.etd.account_management` (underscore — the hyphenated form is invalid in Java).
+
+---
+
+## Microservice Role
+
+account-management is the **employee CRUD service** in the ETD system. It manages employees, grades and grade history. It does **not** handle login or token issuance — that is auth-service's responsibility.
+
+| Service | Port | Responsibility |
+|---|---|---|
+| auth-service | 8080 | Login, refresh, logout, blacklist check — issues JWT tokens |
+| **account-management** | **8081** | Employee / grade / grade-history CRUD + H2 TCP server host |
+| travel-planner | 8082 | Travel request lifecycle |
 
 ---
 
 ## Database
 
-- Default datasource is **H2 file-mode** at `~/data/account_management` with `AUTO_SERVER=TRUE` so multiple processes (app + console) can connect to the same file.
-- H2 console is at `/h2-console` (username `sa`, blank password). X-Frame-Options is `sameOrigin` so iframes render correctly.
-- A MySQL configuration is commented out in `application.properties`; switching back requires uncommenting both the `mysql-connector-j` dependency in `build.gradle` and the MySQL `spring.datasource.*` lines.
-- `account_management.sql` is a **MySQL reference schema only** — not executed by the app, not H2-compatible. JPA/Hibernate auto-creates all tables on startup via `ddl-auto=update`.
-- `ddl-auto=update` adds new columns and tables but **never drops** them. If you delete an entity class, drop its table manually via H2 console or do a fresh start.
+- **H2 file-mode** at `~/data/account_management`. account-management opens the file directly (embedded) and also starts an **H2 TCP server on port 9092** via `H2ServerConfig` — auth-service and other ETD services connect to this TCP server, eliminating file-locking conflicts.
+- H2 console: `/h2-console` (username `sa`, blank password, JDBC URL: `jdbc:h2:file:~/data/account_management`).
+- MySQL config is commented out in `application.properties`; switch by uncommenting the `mysql-connector-j` dep in `build.gradle` and the MySQL `spring.datasource.*` lines.
+- `account_management.sql` is a **MySQL reference schema only** — not executed by the app. JPA/Hibernate auto-creates/updates tables via `ddl-auto=update`.
+- `ddl-auto=update` adds columns and tables but **never drops** them. Drop stale tables manually via H2 console if needed.
+
+### H2 TCP Server
+
+`config/H2ServerConfig` starts an H2 TCP server (`-tcpPort 9092`, `-tcpAllowOthers`) as a Spring `@Bean`. It starts before the DataSource and stops on context shutdown. All other ETD services connect via `jdbc:h2:tcp://localhost:9092/~/data/account_management`.
+
+> **account-management must start first** — auth-service and travel-planner cannot connect until port 9092 is up.
 
 ### Fresh start (wipe DB)
 
-Delete both files then restart — `DataInitializer` seeds everything automatically:
+Stop all services, delete both files, then **restart account-management first**, then the others:
 ```
 ~/data/account_management.mv.db
 ~/data/account_management.trace.db
 ```
 
+> **Note:** `refresh_tokens` and `token_blacklist` tables also live in this file — they are owned by auth-service and are not touched by account-management's schema management.
+
 ---
 
 ## Architecture
 
-Standard Spring Boot layered REST API. All `/api/*` endpoints annotated `@CrossOrigin` (open CORS).
+Standard Spring Boot layered REST API. All `/api/*` controllers annotated `@CrossOrigin` (open CORS).
 
 ```
 controller → service.interfaces / service.classes → dao (JpaRepository) → entity
                        ↘ mapper ↗
                        ↘ dto   ↗
+                       ↘ client (Feign to auth-service) ↗
 ```
 
 ### Package layout
 
 ```
 com.etd.account_management
-├── config/          JwtAuthFilter, SecurityConfig, DataInitializer
-├── constant/        AppConstant  (all message-key and string constants)
-├── controller/      AuthController, EmployeeController, GradeController, GradeHistoryController
-├── dao/             EmployeeRepo, GradeRepo, GradeHistoryRepo,
-│                    RefreshTokenRepo, TokenBlacklistRepo
-├── dto/             *RequestDTO, *ResponseDTO, AuthRequestDTO, AuthResponseDTO,
-│                    RefreshRequestDTO, ErrorDTO
-├── entity/          Employee, Grade, GradeHistory, RefreshToken, TokenBlacklist
-├── exception/       BadRequestException, NotFoundException, GradeUpdateRuleViolationException
-│                    GlobalExceptionHandler  (maps all three to ErrorDTO)
+├── client/          AuthServiceClient  (Feign client to auth-service for blacklist check)
+├── config/          JwtAuthFilter, SecurityConfig, DataInitializer, H2ServerConfig
+├── constant/        AppConstant  (message-key and string constants)
+├── controller/      EmployeeController, GradeController, GradeHistoryController
+├── dao/             EmployeeRepo, GradeRepo, GradeHistoryRepo
+├── dto/             EmployeeRequestDTO, EmployeeResponseDTO, GradeResponseDTO,
+│                    GradeHistoryResponseDTO, ErrorDTO
+├── entity/          Employee, Grade, GradeHistory
+├── exception/       BadRequestException, NotFoundException,
+│                    GradeUpdateRuleViolationException, GlobalExceptionHandler
 ├── mapper/          EmployeeMapper, GradeMapper, GradeHistoryMapper
 ├── service/
-│   ├── interfaces/  EmployeeService, GradeService, GradeHistoryService,
-│   │                RefreshTokenService, TokenBlacklistService
+│   ├── interfaces/  EmployeeService, GradeService, GradeHistoryService
 │   └── classes/     EmployeeServiceImpl, GradeServiceImpl, GradeHistoryServiceImpl,
-│                    MyUserDetailService, RefreshTokenServiceImpl, TokenBlacklistServiceImpl
+│                    MyUserDetailService
 └── util/            JWTUtil, CommonUtil
 ```
 
@@ -76,155 +96,131 @@ com.etd.account_management
 
 ## Domain Model
 
-Five JPA entities in `entity/`:
+Three JPA entities in `entity/`:
 
-- **`Employee`** — core entity. Fields: `employeeId` (sequence, 6-digit), `firstName`, `lastName`, `phoneNumber`, `emailAddress`, `role`, `password` (BCrypt hash), `accessGranted`, `currentGrade` (@ManyToOne), `gradeHistories` (@OneToMany).
-- **`Grade`** — reference/lookup table (`grades`). Seeded with Grade-1, Grade-2, Grade-3 by `DataInitializer`.
-- **`GradeHistory`** — append-only audit log of `(employee, grade, assignedOn)`. A new row must be written every time a grade is assigned or changed.
-- **`RefreshToken`** — stores one active refresh token per employee. Fields: `id`, `token` (UUID string, unique), `employee` (@OneToOne, unique), `expiryDate`. Old token is deleted on every new login or refresh call.
-- **`TokenBlacklist`** — stores access tokens that have been explicitly invalidated via logout. Fields: `id`, `token` (length 512, unique), `expiryDate`. Entries are cleaned up on startup once their `expiryDate` has passed (tokens only live 1 hour so the table stays small).
+- **`Employee`** — core entity. Table: `employees`. Fields: `employeeId` (sequence, 6-digit), `firstName`, `lastName`, `phoneNumber`, `emailAddress`, `role`, `password` (BCrypt hash), `accessGranted`, `currentGrade` (@ManyToOne → Grade), `gradeHistories` (@OneToMany → GradeHistory).
+- **`Grade`** — reference/lookup table (`grades`). Seeded with Grade-1, Grade-2, Grade-3 by `DataInitializer`. Lower `id` = higher seniority (Grade-1 is most senior).
+- **`GradeHistory`** — append-only audit log. Table: `grades_history`. Fields: `id`, `assignedOn`, `employee` (@ManyToOne), `grade` (@ManyToOne). A new row is written on every grade assignment or change.
+
+> **Note:** `refresh_tokens` and `token_blacklist` tables exist in the shared DB but are owned exclusively by auth-service. account-management has no entities or repos for them.
 
 ---
 
 ## Startup Seeding — DataInitializer
 
-`config/DataInitializer` implements `ApplicationRunner` and runs on every startup:
+`config/DataInitializer` implements `ApplicationRunner` and runs on every startup. Seeds are idempotent.
 
-1. **Seeds grades** — inserts Grade-1 / Grade-2 / Grade-3 if `grades` table is empty.
-2. **Seeds default employees** — creates the following if they don't already exist:
+**Step 1 — Grades** (if `grades` table is empty):
 
-| Role | Email | Default password |
+| id | name | Seniority |
 |---|---|---|
-| HR | `admin.hr@cognizant.com` | `Admin@123` |
-| TravelDeskExe | `desk.exec@cognizant.com` | `Exec@123` |
+| 1 | Grade-1 | Most senior |
+| 2 | Grade-2 | Mid |
+| 3 | Grade-3 | Most junior |
 
-Passwords are BCrypt-hashed (strength 12) before saving.
+**Step 2 — Default employees** (by email, if not already present):
 
-3. **Cleans up expired blacklisted tokens** — runs `tokenBlacklistRepo.deleteExpiredTokens(LocalDateTime.now())` to purge stale entries from `token_blacklist`.
+| Role | Email | Password | Grade |
+|---|---|---|---|
+| HR | `admin.hr@cognizant.com` | `Admin@123` | Grade-1 |
+| TravelDeskExe | `desk.exec@cognizant.com` | `Exec@123` | Grade-1 |
+| Employee | `john.employee@cognizant.com` | `Employee@123` | Grade-3 |
+
+All passwords are BCrypt-hashed (strength 12) before saving.
+
+> **Why DataInitializer lives here and not in auth-service:** Employees require a `current_grade_id` FK, so grades must be seeded first. auth-service's Employee entity is read-only with no grade relationship — it cannot insert employees correctly. account-management is the system of record for employee data.
 
 ---
 
 ## Business Rules
 
 ### Employee ID
-- Auto-generated from `@SequenceGenerator` (`employee_seq`, `initialValue = 100000`, `allocationSize = 1`) — guarantees IDs from 100000 to 999999 (always 6 digits).
-- `CommonUtil.validateEmployeeId(Long id)` enforces the range in `getById`, `updateEmployee`, and `deleteEmployee`. Violation → `BadRequestException`.
+- Auto-generated from `@SequenceGenerator` (`employee_seq`, `initialValue = 100000`, `allocationSize = 1`) — always 6 digits.
+- `CommonUtil.validateEmployeeId(Long id)` enforces the 100000–999999 range in `getById`, `updateEmployee`, `deleteEmployee`. Violation → `BadRequestException`.
 
 ### Email
-- Must end with `@cognizant.com`. Validated by `CommonUtil.validateEmail(String)` / `validateEmailAddress(EmployeeRequestDTO)`, called from both create and update paths.
+- Must end with `@cognizant.com`. Validated by `CommonUtil.validateEmail` / `CommonUtil.validateEmailAddress`, called on both create and update paths.
 
 ### Grade-change rules
-Enforced in `EmployeeServiceImpl.updateEmployee` — all four rules must hold:
+Enforced in `EmployeeServiceImpl.updateEmployee` — all rules must hold:
 
-1. Grade can only go **upward** — lower `Grade.id` = higher seniority. Trying to set a higher ID is a downgrade → `GradeUpdateRuleViolationException`.
-2. New joiner freeze — grade cannot change within **2 years** of the earliest `GradeHistory.assignedOn` (treated as joining date).
-3. After the 2-year freeze — grade can change at most **once per year** vs. the latest `GradeHistory.assignedOn`.
+1. Grade can only go **upward** — lower `Grade.id` = higher seniority. Setting a higher ID = downgrade → `GradeUpdateRuleViolationException`.
+2. New joiner freeze — grade cannot change within **2 years** of the earliest `GradeHistory.assignedOn` (joining date).
+3. After freeze — grade can change at most **once per year** vs. the latest `GradeHistory.assignedOn`.
 4. On `createEmployee`, if `role == "TravelDeskExe"` the grade is force-set to Grade-1 (`id = 1L`) regardless of input.
 
-Violations → `GradeUpdateRuleViolationException`. Missing grade/employee → `BadRequestException` / `NotFoundException`. All mapped to `ErrorDTO` by `GlobalExceptionHandler`.
+Violations → `GradeUpdateRuleViolationException`. Missing resources → `BadRequestException` / `NotFoundException`. All mapped to `ErrorDTO` by `GlobalExceptionHandler`.
 
 ### Password
-- HR provides plain-text `password` in `POST /api/employees` request body.
+- HR provides plain-text password in the `POST /api/employees` body.
 - `EmployeeServiceImpl.createEmployee` BCrypt-hashes it (strength 12) before saving.
 - `EmployeeRequestDTO` has `@ToString(exclude = "password")` — passwords are never logged.
-- The update endpoint (`PUT /api/employees/{id}`) does **not** change the password.
+- `PUT /api/employees/{id}` does **not** change the password.
 
 ---
 
-## Authentication & Authorization (JWT + Refresh Token + Blacklist)
+## Authentication & Authorization
 
-Spring Security with stateless JWT. CSRF disabled globally.
+> **Login, refresh and logout are handled by auth-service (port 8080).** This service only **validates** incoming JWT tokens — it does not issue them.
 
-### Token strategy
+### How token validation works
 
-| Token | Validity | Storage |
-|---|---|---|
-| Access token | **1 hour** | Client memory / Authorization header |
-| Refresh token | **7 days** | `refresh_tokens` DB table (one per employee) |
-| Blacklisted token | Until expiry | `token_blacklist` DB table (cleaned up on startup) |
+`JwtAuthFilter` runs on every incoming request:
+1. Extracts `Bearer <token>` from `Authorization` header
+2. Parses `username` (subject claim) — catches exception silently if invalid/expired
+3. **Calls `AuthServiceClient.isBlacklisted(token)`** via Feign → `GET http://localhost:8080/auth/blacklist/check?token=...`; if `true` → 403
+4. Loads `UserDetails` via `MyUserDetailService` (queries `EmployeeRepo` by email)
+5. Calls `JWTUtil.validateToken(token, userDetails)` — checks username match + not expired
+6. Sets `UsernamePasswordAuthenticationToken` in `SecurityContextHolder`
 
-### Full auth lifecycle
+Fail-open: if auth-service is unreachable at step 3, the blacklist check is skipped (warning logged) and the request proceeds with local signature + expiry validation only.
 
-```
-1. POST /login  →  access token (1h) + refresh token (7d) returned
-2. Every API call  →  Authorization: Bearer <accessToken>
-3. Access token expires  →  403  →  call POST /auth/refresh
-4. POST /auth/refresh  →  new access token + new refresh token (token rotation)
-5. Refresh token expires (7 days)  →  400  →  must POST /login again
-6. POST /auth/logout  →  refresh token deleted + access token blacklisted immediately
-```
+### AuthServiceClient (Feign)
 
-### JwtAuthFilter — request validation order
-
-For every incoming request:
-1. Extract `Bearer <token>` from `Authorization` header
-2. Parse and extract `username` from token (catches exception silently if invalid/expired)
-3. **Check `TokenBlacklistService.isBlacklisted(token)`** — if `true`, skip authentication entirely → 403
-4. Load `UserDetails` from `EmployeeRepo` via `MyUserDetailService`
-5. Call `JWTUtil.validateToken()` — checks username match + not expired
-6. Set `UsernamePasswordAuthenticationToken` in `SecurityContext`
+`client/AuthServiceClient` calls `GET ${auth.service.base_url}auth/blacklist/check?token=...` (`http://localhost:8080/auth/blacklist/check`). Returns `Boolean`. Requires `@EnableFeignClients` on `AccountManagementApplication` and Spring Cloud dependency in `build.gradle`.
 
 ### MyUserDetailService
 
-Loads from `EmployeeRepo.findByEmailAddress(email)`. Maps `Employee` to Spring `UserDetails`:
-- `username` → `employee.emailAddress`
-- `password` → `employee.password` (BCrypt hash)
-- `authorities` → `[employee.role]` (single authority, no `ROLE_` prefix)
-- `enabled` → `employee.accessGranted` — set to `false` to disable login without deleting the record.
+Loads `Employee` by email → builds Spring `UserDetails`:
+- `username` → `emailAddress`
+- `password` → BCrypt hash (used only by Spring Security internals)
+- `authorities` → `[role]` (single authority, no `ROLE_` prefix)
+- `enabled` → `accessGranted`
 
 ### Authorization rules (SecurityConfig)
 
 | Path | Rule |
 |---|---|
-| `POST /login` | `permitAll` |
-| `POST /auth/refresh` | `permitAll` (access token may be expired) |
-| `POST /auth/logout` | `permitAll` (access token may be expired) |
 | `/h2-console/**` | `permitAll` |
 | `/swagger-ui/**`, `/swagger-ui.html`, `/v3/api-docs/**` | `permitAll` |
 | `GET /api/**` | any authenticated user |
 | `POST /api/**`, `PUT /api/**`, `DELETE /api/**` | `hasAuthority("HR")` only |
 | everything else | authenticated |
 
+`SecurityConfig` provides a `PasswordEncoder` bean (`BCryptPasswordEncoder` strength 12) used by `DataInitializer`. `AuthenticationProvider` and `AuthenticationManager` beans were removed when login moved to auth-service.
+
 ### Roles
 
 Raw strings, no `ROLE_` prefix. Constants in `AppConstant`: `ROLE_HR = "HR"`, `ROLE_EMPLOYEE = "Employee"`, `ROLE_TRAVEL_DESK_EXE = "TravelDeskExe"`.
 
-### JWTUtil — methods
+### JWTUtil — validation only
 
 | Method | Description |
 |---|---|
-| `generateToken(username)` | Creates a signed JWT valid for 1 hour |
-| `extractUsername(token)` | Parses subject claim; throws if token is invalid or expired |
-| `validateToken(token, userDetails)` | Returns true if username matches and token is not expired |
-| `extractExpiration(token)` | Returns `LocalDateTime` expiry; **safe on expired tokens** (catches `ExpiredJwtException` and reads the claim from the exception) — used by `TokenBlacklistService` |
+| `extractUsername(token)` | Parses `sub` claim — throws if token invalid or expired |
+| `validateToken(token, userDetails)` | Returns true if username matches and token not expired |
 
-### JWT signing key — caveat
+`generateToken` and `extractExpiration` were removed — token issuance belongs to auth-service. `isTokenExpired` is private, used only by `validateToken`.
 
-`JWTUtil` generates a fresh random HmacSHA256 key on every app startup. **All previously issued tokens are invalidated on restart.** To persist tokens across restarts, externalize the secret to `application.properties` (e.g. `jwt.secret=<base64-value>`) and inject via `@Value`.
+### Shared JWT secret
 
-### Refresh token — important implementation note
-
-`RefreshTokenRepo.deleteByEmployee` uses `@Modifying(clearAutomatically = true)` with a direct JPQL DELETE. **Do not change this to a derived delete method.** The derived method goes through Hibernate's entity lifecycle and batches the DELETE behind the next INSERT, causing a unique constraint violation on `employee_id`. The `@Modifying @Query` executes immediately, before the INSERT.
-
-### Token blacklist — logout behaviour
-
-`POST /auth/logout` requires **both**:
-- `Authorization: Bearer <accessToken>` header — the access token is read and saved to `token_blacklist`
-- `{ "refreshToken": "..." }` body — the refresh token is deleted from `refresh_tokens`
-
-If the `Authorization` header is omitted, the refresh token is still deleted (no new `/auth/refresh` calls possible) but the access token remains valid until its natural 1-hour expiry. **Always send both when calling logout.**
+`application.properties` must contain `jwt.secret=<value>` matching auth-service. Key is derived from the secret string via UTF-8 bytes (HMAC-SHA256). Changing without updating auth-service invalidates all active tokens.
 
 ---
 
 ## API Endpoints
 
-### Auth
-
-| Method | URL | Auth | Body | Description |
-|---|---|---|---|---|
-| POST | `/login` | Open | `{ emailAddress, password }` | Authenticate; returns access token + refresh token |
-| POST | `/auth/refresh` | Open | `{ refreshToken }` | Rotate tokens; old refresh token deleted, new pair returned |
-| POST | `/auth/logout` | Open | `{ refreshToken }` | Blacklist access token + delete refresh token |
+> Auth endpoints (`/login`, `/auth/refresh`, `/auth/logout`) are in **auth-service (port 8080)**.
 
 ### Employees
 
@@ -246,14 +242,14 @@ If the `Authorization` header is omitted, the refresh token is still deleted (no
 
 | Method | URL | Auth | Description |
 |---|---|---|---|
-| GET | `/api/gradeHistory` | Authenticated | List all grade history records |
+| GET | `/api/gradeHistory` | Authenticated | All grade history records |
 | GET | `/api/gradeHistory/{employeeId}` | Authenticated | Grade history for a specific employee |
 
 ---
 
 ## Error Messages
 
-User-facing strings live in `messages.properties`. Keys are constants in `AppConstant`. Always look up via `messageSource.getMessage(CONSTANT, null, Locale.ENGLISH)` — never use string literals.
+Strings in `messages.properties`. Keys are constants in `AppConstant`. Always look up via `messageSource.getMessage(CONSTANT, null, Locale.ENGLISH)` — never use string literals.
 
 | Constant | Key | Message |
 |---|---|---|
@@ -264,28 +260,25 @@ User-facing strings live in `messages.properties`. Keys are constants in `AppCon
 | `ERROR_EMPLOYEE_INVALID_EMAIL` | `error.employee.invalid.email` | Invalid email address |
 | `ERROR_EMPLOYEE_INVALID_ID` | `error.employee.invalid.id` | Employee ID must be a valid 6 digit number |
 | `ERROR_GRADE_NOT_FOUND` | `error.grade.not.found` | Grade not found |
-| `ERROR_INVALID_CREDENTIALS` | `error.invalid.credentials` | Invalid email or password |
-| `ERROR_REFRESH_TOKEN_INVALID` | `error.refresh.token.invalid` | Invalid refresh token |
-| `ERROR_REFRESH_TOKEN_EXPIRED` | `error.refresh.token.expired` | Refresh token has expired. Please login again |
 
 ---
 
 ## Mappers
 
-Plain `@Component` classes in `mapper/` — no MapStruct. Entities are never returned from controllers; always map to a `*ResponseDTO` first.
+Plain `@Component` classes in `mapper/` — no MapStruct. Entities are never returned from controllers; always mapped to a `*ResponseDTO` first.
 
-- `EmployeeMapper.mapEmployeeToEmployeeResponseDTO` — derives `gradeAssignedOn` by sorting `gradeHistories` descending and taking the last element. Depends on `GradeHistory.assignedOn` being non-null.
-- `EmployeeMapper.mapEmployeeRequestDTOToEmployee` — does **not** set `password`. The service handles BCrypt hashing and sets it on the entity after mapping.
+- `EmployeeMapper.mapEmployeeToEmployeeResponseDTO` — derives `gradeAssignedOn` by sorting `gradeHistories` descending and taking the latest entry. Depends on `GradeHistory.assignedOn` being non-null.
+- `EmployeeMapper.mapEmployeeRequestDTOToEmployee` — does **not** set `password`; the service BCrypt-hashes it separately after mapping.
 
 ---
 
 ## Conventions
 
-- **Constructor injection only** — no `@Autowired` field injection anywhere.
+- **Constructor injection only** — no `@Autowired` field injection.
 - **Service interfaces** in `service/interfaces/`, impls in `service/classes/`.
 - **Lombok** on all entities and DTOs: `@Getter @Setter @Builder @AllArgsConstructor @NoArgsConstructor`. Use `@ToString(exclude = "password")` on any DTO carrying credentials.
-- **SLF4J logger** per class — `logger.info(...)` on entry to controller/service methods, `logger.warn(...)` immediately before throwing any exception.
-- **`@Transactional`** on service impl methods that write to the DB (create / update / delete).
-- **`@Modifying(clearAutomatically = true) @Query`** for any bulk DELETE that runs alongside an INSERT in the same transaction — never use derived delete methods in those cases (Hibernate batching causes unique constraint violations).
-- **CLAUDE.md must be updated** whenever any code change is made — entity added, endpoint changed, business rule modified, bug fixed.
-- **Springdoc OpenAPI** — Swagger UI at `/swagger-ui.html`, JSON spec at `/v3/api-docs`.
+- **SLF4J logger** per class — `logger.info(...)` on entry, `logger.warn(...)` immediately before throwing.
+- **`@Transactional`** on service impl methods that write to the DB.
+- **`@Modifying(clearAutomatically = true) @Query`** for bulk DELETEs that run alongside INSERTs — never use derived delete methods in those cases (Hibernate batching causes unique constraint violations).
+- **CLAUDE.md must be updated** on every code change.
+- **Springdoc OpenAPI** — Swagger UI at `/swagger-ui.html`, spec at `/v3/api-docs`.
