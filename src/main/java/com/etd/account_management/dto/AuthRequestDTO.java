@@ -13,22 +13,12 @@ import lombok.ToString;
 @NoArgsConstructor
 @AllArgsConstructor
 @ToString(exclude = "password")
-public class EmployeeRequestDTO {
-
-    private String firstName;
-
-    private String lastName;
-
-    private String phoneNumber;
+public class AuthRequestDTO {
 
     private String emailAddress;
 
-    private String role;
-
     private String password;
 
-    private Long currentGradeId;
-
-    private Boolean accessGranted;
+    private String role;
 
 }
