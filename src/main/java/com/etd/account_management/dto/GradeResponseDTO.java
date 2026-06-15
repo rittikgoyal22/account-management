@@ -15,6 +15,8 @@ public class GradeResponseDTO {
 
     private Long id;
 
-    private String name;
+    private String gradeName;
+
+    private Long maxBudgetPerDay;
 
 }

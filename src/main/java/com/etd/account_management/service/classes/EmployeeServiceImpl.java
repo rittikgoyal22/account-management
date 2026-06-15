@@ -28,6 +28,7 @@ import java.util.Locale;
 import java.util.Objects;
 
 import static com.etd.account_management.constant.AppConstant.CURRENT_GRADE_ID;
+import static com.etd.account_management.constant.AppConstant.EMAIL_ADDRESS;
 import static com.etd.account_management.constant.AppConstant.EMPLOYEE_ID;
 import static com.etd.account_management.constant.AppConstant.ERROR_EMPLOYEE_NOT_FOUND;
 import static com.etd.account_management.constant.AppConstant.ERROR_GRADE_CHANGE_NEW_JOINER;
@@ -72,6 +73,16 @@ public class EmployeeServiceImpl implements EmployeeService {
         logger.info("Inside EmployeeServiceImpl :: Fetching employee with id: {}", id);
         commonUtil.validateEmployeeId(id);
         Employee employee = employeeRepo.findById(id).orElseThrow(() -> new NotFoundException(messageSource.getMessage(ERROR_EMPLOYEE_NOT_FOUND,null, Locale.ENGLISH), EMPLOYEE_ID));
+        return employeeMapper.mapEmployeeToEmployeeResponseDTO(employee);
+    }
+
+    @Override
+    public EmployeeResponseDTO getEmployeeByEmail(String email) {
+        logger.info("Inside EmployeeServiceImpl :: Fetching employee by email: {}", email);
+        Employee employee = employeeRepo.findByEmailAddress(email).orElseThrow(() -> {
+            logger.warn("Inside EmployeeServiceImpl :: Employee not found for email: {}", email);
+            return new NotFoundException(messageSource.getMessage(ERROR_EMPLOYEE_NOT_FOUND, null, Locale.ENGLISH), EMAIL_ADDRESS);
+        });
         return employeeMapper.mapEmployeeToEmployeeResponseDTO(employee);
     }
 

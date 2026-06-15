@@ -24,12 +24,13 @@ public class EmployeeMapper {
     public EmployeeResponseDTO mapEmployeeToEmployeeResponseDTO(Employee employee) {
         logger.info("Inside EmployeeMapper :: Mapping Employee to EmployeeResponseDTO");
         return EmployeeResponseDTO.builder()
-                .id(employee.getEmployeeId())
+                .employeeId(employee.getEmployeeId())
                 .firstName(employee.getFirstName())
                 .lastName(employee.getLastName())
                 .phoneNumber(employee.getPhoneNumber())
                 .emailAddress(employee.getEmailAddress())
                 .role(employee.getRole())
+                .accessGranted(employee.getAccessGranted())
                 .gradeName(!ObjectUtils.isEmpty(employee.getCurrentGrade())? employee.getCurrentGrade().getName() : null)
                 .gradeAssignedOn(ObjectUtils.isEmpty(employee.getGradeHistories())? LocalDateTime.now():employee.getGradeHistories().stream().sorted((a,b)->b.getAssignedOn().compareTo(a.getAssignedOn())).toList().getLast().getAssignedOn())
                 .build();

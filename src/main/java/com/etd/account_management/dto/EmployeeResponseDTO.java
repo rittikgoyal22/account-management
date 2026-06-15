@@ -15,7 +15,7 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 public class EmployeeResponseDTO {
 
-    private Long id;
+    private Long employeeId;
 
     private String firstName;
 
@@ -26,6 +26,8 @@ public class EmployeeResponseDTO {
     private String emailAddress;
 
     private String role;
+
+    private Boolean accessGranted;
 
     private String gradeName;
 
