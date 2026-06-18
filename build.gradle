@@ -43,10 +43,7 @@ dependencies {
     //for swagger
     implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.7.0'
     //for mysql database
-//    runtimeOnly 'com.mysql:mysql-connector-j'
-	//for h2 database
-    //implementation (not runtimeOnly) so H2 Server class is available at compile time for H2ServerConfig
-    implementation 'com.h2database:h2'
+    runtimeOnly 'com.mysql:mysql-connector-j'
     //for testing
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'org.springframework.security:spring-security-test'

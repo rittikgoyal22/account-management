@@ -2,7 +2,7 @@
 
 Part of the **Employee Travel Desk (ETD)** system — a Cognizant FSE Business Aligned Project.
 
-This microservice is the **HR and Employee management service** of the ETD platform. It manages employee records, grades and grade history. It also hosts the **shared H2 database** used by auth-service and other ETD services. Authentication (login / token refresh / logout) is handled by **auth-service** on port 8080.
+This microservice is the **HR and Employee management service** of the ETD platform. It manages employee records, grades and grade history. It also **owns the shared `account_management` MySQL database** that auth-service connects to. Authentication (login / token refresh / logout) is handled by **auth-service** on port 8080.
 
 ---
 
@@ -12,7 +12,7 @@ This microservice is the **HR and Employee management service** of the ETD platf
 |---|---|
 | **Employee management** | HR can add, view, update grade and delete employees |
 | **Grade tracking** | Every grade assignment or change is recorded as an immutable audit history entry |
-| **H2 TCP server host** | Starts H2 TCP server on port 9092 — auth-service connects to it for the shared database |
+| **Shared database owner** | Owns the `account_management` MySQL database (port 3306) — auth-service connects to the same database for the shared schema |
 | **Token validation** | Validates JWT tokens on every request; calls auth-service to check if token was blacklisted |
 | **Role-based access** | HR has full write access; all authenticated users can read |
 
@@ -26,7 +26,7 @@ This microservice is the **HR and Employee management service** of the ETD platf
 | Framework | Spring Boot 3.5.7 |
 | Security | Spring Security + JWT validation (JJWT 0.12.6) |
 | ORM | Spring Data JPA / Hibernate |
-| Database | H2 file-mode (dev) / MySQL (prod, commented out) |
+| Database | MySQL 8 (`com.mysql:mysql-connector-j`) |
 | Build tool | Gradle |
 | HTTP client | Spring Cloud OpenFeign (calls auth-service for blacklist check) |
 | Utilities | Lombok, Springdoc OpenAPI |
@@ -37,6 +37,7 @@ This microservice is the **HR and Employee management service** of the ETD platf
 
 - Java 21
 - Gradle (system install — wrapper jar is not committed)
+- MySQL 8 running on `localhost:3306` with a database named `account_management` (username `root`)
 - No other service needed — **account-management starts first** and all others depend on it
 
 ---
@@ -44,9 +45,9 @@ This microservice is the **HR and Employee management service** of the ETD platf
 ## Service Startup Order
 
 ```
-1. account-management (port 8081)  ← start first — starts H2 TCP server on port 9092
-2. auth-service (port 8080)        ← connects to H2 TCP server
-3. travel-planner (port 8082)      ← connects to H2 TCP server
+1. account-management (port 8081)  ← start first — creates the shared account_management schema + seeds default users
+2. auth-service (port 8080)        ← connects to the same account_management MySQL database
+3. travel-planner (port 8082)      ← own travel_planner MySQL database
 ```
 
 ---
@@ -57,7 +58,7 @@ This microservice is the **HR and Employee management service** of the ETD platf
 # Build
 gradle build
 
-# Run — starts on port 8081 and H2 TCP server on port 9092
+# Run — starts on port 8081
 gradle bootRun
 
 # Run tests
@@ -110,33 +111,25 @@ If blacklisted → `403`. If auth-service is unreachable → fail-open (request 
 
 ## Database
 
-### H2 (default — no setup needed)
-
-account-management opens the database file directly (embedded mode) and also starts an **H2 TCP server on port 9092**. auth-service connects to this TCP server.
+account-management owns the `account_management` MySQL database. auth-service connects to the **same** database directly over TCP 3306. Hibernate auto-creates and updates the schema (`spring.jpa.hibernate.ddl-auto=update`) on startup — no SQL script is run by the app.
 
 | Setting | Value |
 |---|---|
-| Console URL | `http://localhost:8081/h2-console` |
-| JDBC URL | `jdbc:h2:file:~/data/account_management` |
-| Username | `sa` |
-| Password | *(blank)* |
+| Engine | MySQL 8 |
+| JDBC URL | `jdbc:mysql://localhost:3306/account_management` |
+| Driver | `com.mysql.cj.jdbc.Driver` |
+| Dialect | `org.hibernate.dialect.MySQLDialect` |
+| Username | `root` |
 
-> `refresh_tokens` and `token_blacklist` tables are also in this DB file — owned and managed by auth-service.
+> `refresh_tokens` and `token_blacklist` tables are also in this database — owned and managed by auth-service (which now runs with `ddl-auto=update` to create them in the shared database).
 
 ### Fresh start (wipe all data)
 
-Stop **all services**, delete these two files, then restart **account-management first**, then auth-service and travel-planner:
+Stop **all services**, then DROP and re-CREATE the database (or TRUNCATE its tables), then restart **account-management first**, then auth-service and travel-planner:
+```sql
+DROP DATABASE account_management;
+CREATE DATABASE account_management;
 ```
-~/data/account_management.mv.db
-~/data/account_management.trace.db
-```
-
-### Switch to MySQL
-
-1. Uncomment `runtimeOnly 'com.mysql:mysql-connector-j'` in `build.gradle`
-2. Uncomment the MySQL `spring.datasource.*` lines in `application.properties`
-3. Comment out the H2 datasource lines
-4. Run `account_management.sql` to create the schema
 
 ---
 
@@ -322,7 +315,7 @@ All grade-rule violations → `400 BAD_REQUEST`.
 ```
 src/main/java/com/etd/account_management/
 ├── client/           AuthServiceClient  (Feign — blacklist check on every request)
-├── config/           JwtAuthFilter, SecurityConfig, DataInitializer, H2ServerConfig
+├── config/           JwtAuthFilter, SecurityConfig, DataInitializer
 ├── constant/         AppConstant (message keys + string constants)
 ├── controller/       EmployeeController, GradeController, GradeHistoryController
 ├── dao/              EmployeeRepo, GradeRepo, GradeHistoryRepo
@@ -346,7 +339,7 @@ src/main/java/com/etd/account_management/
 | Service | Port | Responsibility |
 |---|---|---|
 | **auth-service** | **8080** | Login, token refresh, logout, blacklist check |
-| **account-management** *(this service)* | **8081** | Employee / grade / grade-history CRUD + H2 TCP server |
+| **account-management** *(this service)* | **8081** | Employee / grade / grade-history CRUD + owner of the shared `account_management` MySQL database |
 | travel-planner | 8082 | Travel request lifecycle, budget calculation |
 | reservation-management | — | Flight / hotel / cab reservation upload and tracking |
 | reimbursement-management | — | Expense claim submission and processing |

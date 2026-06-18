@@ -28,34 +28,29 @@ account-management is the **employee CRUD service** in the ETD system. It manage
 | Service | Port | Responsibility |
 |---|---|---|
 | auth-service | 8080 | Login, refresh, logout, blacklist check — issues JWT tokens |
-| **account-management** | **8081** | Employee / grade / grade-history CRUD + H2 TCP server host |
+| **account-management** | **8081** | Employee / grade / grade-history CRUD + owner of the shared `account_management` MySQL database |
 | travel-planner | 8082 | Travel request lifecycle |
 
 ---
 
 ## Database
 
-- **H2 file-mode** at `~/data/account_management`. account-management opens the file directly (embedded) and also starts an **H2 TCP server on port 9092** via `H2ServerConfig` — auth-service and other ETD services connect to this TCP server, eliminating file-locking conflicts.
-- H2 console: `/h2-console` (username `sa`, blank password, JDBC URL: `jdbc:h2:file:~/data/account_management`).
-- MySQL config is commented out in `application.properties`; switch by uncommenting the `mysql-connector-j` dep in `build.gradle` and the MySQL `spring.datasource.*` lines.
-- `account_management.sql` is a **MySQL reference schema only** — not executed by the app. JPA/Hibernate auto-creates/updates tables via `ddl-auto=update`.
-- `ddl-auto=update` adds columns and tables but **never drops** them. Drop stale tables manually via H2 console if needed.
+- **MySQL 8** database `account_management`, reached over TCP on port **3306**. account-management is the schema owner; auth-service connects to the **same** database directly. Configured via `spring-boot-starter-data-jpa` + `runtimeOnly 'com.mysql:mysql-connector-j'` (driver `com.mysql.cj.jdbc.Driver`, dialect `org.hibernate.dialect.MySQLDialect`).
+- Connection: JDBC URL `jdbc:mysql://localhost:3306/account_management`, username `root`.
+- JPA/Hibernate auto-creates/updates tables via `spring.jpa.hibernate.ddl-auto=update` — no SQL script is executed by the app.
+- `ddl-auto=update` adds columns and tables but **never drops** them. Drop stale tables manually in MySQL if needed.
 
-### H2 TCP Server
-
-`config/H2ServerConfig` starts an H2 TCP server (`-tcpPort 9092`, `-tcpAllowOthers`) as a Spring `@Bean`. It starts before the DataSource and stops on context shutdown. All other ETD services connect via `jdbc:h2:tcp://localhost:9092/~/data/account_management`.
-
-> **account-management must start first** — auth-service and travel-planner cannot connect until port 9092 is up.
+> **account-management must start first** — it creates the shared `employees` / `grades` schema and seeds the default users. auth-service then connects to the same `account_management` database (with `ddl-auto=update`) and creates the `refresh_tokens` and `token_blacklist` tables it owns.
 
 ### Fresh start (wipe DB)
 
-Stop all services, delete both files, then **restart account-management first**, then the others:
-```
-~/data/account_management.mv.db
-~/data/account_management.trace.db
+Stop all services, then DROP and re-CREATE the `account_management` MySQL database (or TRUNCATE its tables), then **restart account-management first**, then the others:
+```sql
+DROP DATABASE account_management;
+CREATE DATABASE account_management;
 ```
 
-> **Note:** `refresh_tokens` and `token_blacklist` tables also live in this file — they are owned by auth-service and are not touched by account-management's schema management.
+> **Note:** `refresh_tokens` and `token_blacklist` tables also live in this database — they are owned by auth-service and are not touched by account-management's schema management.
 
 ---
 
@@ -75,7 +70,7 @@ controller → service.interfaces / service.classes → dao (JpaRepository) → 
 ```
 com.etd.account_management
 ├── client/          AuthServiceClient  (Feign client to auth-service for blacklist check)
-├── config/          JwtAuthFilter, SecurityConfig, DataInitializer, H2ServerConfig
+├── config/          JwtAuthFilter, SecurityConfig, DataInitializer
 ├── constant/        AppConstant  (message-key and string constants)
 ├── controller/      EmployeeController, GradeController, GradeHistoryController
 ├── dao/             EmployeeRepo, GradeRepo, GradeHistoryRepo
@@ -191,7 +186,6 @@ Loads `Employee` by email → builds Spring `UserDetails`:
 
 | Path | Rule |
 |---|---|
-| `/h2-console/**` | `permitAll` |
 | `/swagger-ui/**`, `/swagger-ui.html`, `/v3/api-docs/**` | `permitAll` |
 | `GET /api/**` | any authenticated user |
 | `POST /api/**`, `PUT /api/**`, `DELETE /api/**` | `hasAuthority("HR")` only |
