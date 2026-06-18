@@ -6,6 +6,7 @@ import com.etd.account_management.service.interfaces.EmployeeService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -35,6 +36,14 @@ public class EmployeeController {
         logger.info("Inside Employee Controller :: Fetching all employees");
         List<EmployeeResponseDTO> employees = employeeService.getAllEmployees();
         return ResponseEntity.ok(employees);
+    }
+
+    @GetMapping("/me")
+    public ResponseEntity<EmployeeResponseDTO> getCurrentEmployee() {
+        logger.info("Inside Employee Controller :: Fetching current employee");
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+        EmployeeResponseDTO employeeResponseDTO = employeeService.getEmployeeByEmail(email);
+        return ResponseEntity.ok(employeeResponseDTO);
     }
 
     @GetMapping("/{id}")

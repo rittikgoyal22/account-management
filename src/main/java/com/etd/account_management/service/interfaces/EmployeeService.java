@@ -11,6 +11,8 @@ public interface EmployeeService {
 
     EmployeeResponseDTO getEmployeeById(Long id);
 
+    EmployeeResponseDTO getEmployeeByEmail(String email);
+
     void deleteEmployeeById(Long id);
 
     EmployeeResponseDTO createEmployee(EmployeeRequestDTO employeeRequestDTO);
