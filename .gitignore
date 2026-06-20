@@ -29,7 +29,6 @@ Thumbs.db
 *.class
 
 # Environment files & config
-.env
 application-*.yml
 application-*.properties
 
