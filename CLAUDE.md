@@ -54,6 +54,46 @@ CREATE DATABASE account_management;
 
 ---
 
+## Configuration via Environment Variables
+
+Secrets and environment-specific values are externalized to environment variables (Docker/AWS migration). `application.properties` no longer hardcodes any secret — each value reads from an env var with a **localhost fallback** for non-secrets (so `gradle bootRun` still works), while the two real secrets (`SPRING_DATASOURCE_PASSWORD`, `JWT_SECRET`) have **no fallback** and must be supplied or the app fails fast at startup. Spring Boot relaxed binding maps the `UPPER_SNAKE_CASE` env var to the dotted property automatically.
+
+| Property | Env var | Local fallback |
+|---|---|---|
+| `spring.datasource.url` | `SPRING_DATASOURCE_URL` | `jdbc:mysql://localhost:3306/account_management?createDatabaseIfNotExist=true&useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true` |
+| `spring.datasource.username` | `SPRING_DATASOURCE_USERNAME` | `root` |
+| `spring.datasource.password` | `SPRING_DATASOURCE_PASSWORD` | _none — required secret_ |
+| `jwt.secret` | `JWT_SECRET` | _none — required secret; must be identical across all services_ |
+| `auth.service.base_url` | `AUTH_SERVICE_BASE_URL` | `http://localhost:8080/` |
+
+### Running locally
+Non-secrets default to localhost. Supply the two secrets via your shell/IDE, e.g. PowerShell:
+```powershell
+$env:SPRING_DATASOURCE_PASSWORD="<db-password>"; $env:JWT_SECRET="<shared-secret>"; gradle bootRun
+```
+
+### Secret files
+- `.env` — real values, **gitignored**; consumed by docker-compose `env_file` (uses Docker hostnames, e.g. `mysql`, `auth-service`).
+- `.env.example` — committed template with placeholder secrets; copy to `.env` and fill in.
+
+## Docker
+
+A multi-stage `Dockerfile` builds and runs this service: the build stage uses the `gradle:8.10.2-jdk21` image (the Gradle wrapper jar is not committed) and runs `bootJar`; the runtime stage runs the Spring Boot fat jar on `eclipse-temurin:21-jre` as a non-root `spring` user. `.dockerignore` keeps `.env`, build output and IDE files out of the image.
+
+Run the whole stack from the repo root (recommended):
+```bash
+docker compose up --build
+```
+The root `docker-compose.yml` starts MySQL plus all five services, each wired via its `.env` (`env_file`). This service listens on **8081**. Because account-management owns the shared `account_management` schema and seeds the default users, the other services `depends_on` it.
+
+Build/run this service alone:
+```bash
+docker build -t etd/account-management:latest .
+docker run --env-file .env -p 8081:8081 etd/account-management:latest
+```
+
+---
+
 ## Architecture
 
 Standard Spring Boot layered REST API. All `/api/*` controllers annotated `@CrossOrigin` (open CORS).
@@ -191,6 +231,8 @@ Loads `Employee` by email → builds Spring `UserDetails`:
 | `POST /api/**`, `PUT /api/**`, `DELETE /api/**` | `hasAuthority("HR")` only |
 | everything else | authenticated |
 
+> **CORS:** `SecurityConfig` allows the Angular dev origins `http://localhost:4200`–`4204`, methods `GET, POST, PUT, DELETE, OPTIONS, PATCH`, and all headers.
+
 `SecurityConfig` provides a `PasswordEncoder` bean (`BCryptPasswordEncoder` strength 12) used by `DataInitializer`. `AuthenticationProvider` and `AuthenticationManager` beans were removed when login moved to auth-service.
 
 ### Roles
@@ -222,6 +264,7 @@ Raw strings, no `ROLE_` prefix. Constants in `AppConstant`: `ROLE_HR = "HR"`, `R
 |---|---|---|---|
 | GET | `/api/employees` | Authenticated | List all employees |
 | GET | `/api/employees/{id}` | Authenticated | Single employee by 6-digit ID |
+| GET | `/api/employees/me` | Authenticated | Current logged-in employee (resolved from the JWT subject email) |
 | POST | `/api/employees` | HR only | Create employee (password BCrypt-hashed on save) |
 | PUT | `/api/employees/{id}` | HR only | Update employee grade / details |
 | DELETE | `/api/employees/{id}` | HR only | Delete employee (cascades grade history) |
